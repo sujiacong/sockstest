@@ -6,8 +6,6 @@
 
 +   **SOCKS4/SOCKS4a/SOCKS5 Proxy Testing**: Supports testing of SOCKS4, SOCKS4a, and SOCKS5 proxies.
     
-+   **Authentication Support**: Supports testing of authenticated SOCKS5 proxies.
-    
 ## Usage
 
 ### Command-Line Arguments
