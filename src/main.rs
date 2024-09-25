@@ -260,7 +260,7 @@ async fn socks4a_connect_hostname_test(
 ) -> Result<()> {
     const HTTP_REQUEST: &str = "GET / HTTP/1.1\r\nHost: www.baidu.com\r\nConnection: close\r\n\r\n";
     let mut client = SocksClientBuilder::new(proxyip, proxyport).socks4a().build_tcp_client();
-    let mut stream = client.connect("www.baidu.com", 80).await?;
+    let mut stream = client.connect_hostname("www.baidu.com", 80).await?;
     debuginfo!("socks4a_connect_hostname_test connect to {}:{} success!", "www.baidu.com", 80);
     stream.write_all(&HTTP_REQUEST.as_bytes()).await?;
     debuginfo!(
@@ -297,7 +297,7 @@ async fn socks5_connect_hostname_test(
 ) -> Result<()> {
     const HTTP_REQUEST: &str = "GET / HTTP/1.1\r\nHost: www.baidu.com\r\nConnection: close\r\n\r\n";
     let mut client = SocksClientBuilder::new(proxyip, proxyport).socks5().build_tcp_client();
-    let mut stream = client.connect("www.baidu.com", 80).await?;
+    let mut stream = client.connect_hostname("www.baidu.com", 80).await?;
     debuginfo!("socks5_connect_hostname_test connect to {}:{} success!", "www.baidu.com", 80);
     stream.write_all(&HTTP_REQUEST.as_bytes()).await?;
     debuginfo!(
