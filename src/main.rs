@@ -77,9 +77,11 @@
 use anyhow::{anyhow, Result};
 use colored::Colorize;
 use libsocks_client::SocksClientBuilder;
+use rand::distributions::Alphanumeric;
+use rand::{thread_rng, Rng};
 use std::{net::SocketAddr, process::exit, sync::OnceLock};
 use tokio::{
-    io::{AsyncBufReadExt, AsyncReadExt, AsyncWriteExt},
+    io::{AsyncReadExt, AsyncWriteExt},
     net::{TcpStream, UdpSocket},
     sync::mpsc,
     task::{JoinHandle, JoinSet},
@@ -96,6 +98,7 @@ macro_rules! debuginfo {
 
 static TCP_READ_TIMEOUT: u64 = 10;
 static USRPASS: OnceLock<String> = OnceLock::new();
+static DATASIZE: OnceLock<String> = OnceLock::new();
 
 fn init_auth(authstr: &str) {
     USRPASS.get_or_init(|| String::from(authstr));
@@ -131,32 +134,42 @@ async fn socks4_connect_test(
     _tx: &tokio::sync::mpsc::Sender<Event>, serverip: &str, serverport: u16, proxyip: &str,
     proxyport: u16,
 ) -> Result<()> {
-    let data = b"socks4_connect_test\n";
+    let data = "socks4_connect_test\n".to_owned() + DATASIZE.get().unwrap();
     let mut client = SocksClientBuilder::new(proxyip, proxyport).socks4().build_tcp_client();
     let mut stream = client.connect(serverip, serverport).await?;
     debuginfo!("socks4_connect_test connect to {}:{} success!", serverip, serverport);
-    stream.write_all(data).await?;
+    stream.write_all(data.as_bytes()).await?;
+    stream.shutdown().await?;
     debuginfo!(
         "socks4_connect_test write data len:{} to {}:{} success!",
         data.len(),
         serverip,
         serverport
     );
-    let mut buf = [0; 128];
-    let len = tokio::time::timeout(
-        tokio::time::Duration::from_secs(TCP_READ_TIMEOUT),
-        stream.read(&mut buf[..]),
-    )
-    .await??;
+    let mut buf = vec![0; 128 + DATASIZE.get().unwrap().len()];
+    let mut response_buffer = vec![];
+    loop {
+        let n = tokio::time::timeout(
+            tokio::time::Duration::from_secs(TCP_READ_TIMEOUT),
+            stream.read(&mut buf[..]),
+        )
+        .await??;
+        if n == 0 {
+            break;
+        }
+        response_buffer.extend(&buf[..n]);
+    }
     debuginfo!(
         "socks4_connect_test read data len {} from {}:{} success!",
-        len,
+        response_buffer.len(),
         serverip,
         serverport
     );
-    if buf[..len].eq(data) {
+    if response_buffer.eq(data.as_bytes()) {
         Ok(())
     } else {
+        println!("Expected: {}", data);
+        println!("Received: {}", String::from_utf8_lossy(&response_buffer));
         Err(anyhow!("socks4_connect_test data not equal"))
     }
 }
@@ -165,32 +178,42 @@ async fn socks4a_connect_test(
     _tx: &tokio::sync::mpsc::Sender<Event>, serverip: &str, serverport: u16, proxyip: &str,
     proxyport: u16,
 ) -> Result<()> {
-    let data = b"socks4a_connect_test\n";
+    let data = "socks4a_connect_test\n".to_owned() + DATASIZE.get().unwrap();
     let mut client = SocksClientBuilder::new(proxyip, proxyport).socks4a().build_tcp_client();
     let mut stream = client.connect(serverip, serverport).await?;
     debuginfo!("socks4a_connect_test connect to {}:{} success!", serverip, serverport);
-    stream.write_all(data).await?;
+    stream.write_all(data.as_bytes()).await?;
+    stream.shutdown().await?;
     debuginfo!(
         "socks4a_connect_test write data len:{} to {}:{} success!",
         data.len(),
         serverip,
         serverport
     );
-    let mut buf = [0; 128];
-    let len = tokio::time::timeout(
-        tokio::time::Duration::from_secs(TCP_READ_TIMEOUT),
-        stream.read(&mut buf[..]),
-    )
-    .await??;
+    let mut buf = vec![0; 128 + DATASIZE.get().unwrap().len()];
+    let mut response_buffer = vec![];
+    loop {
+        let n = tokio::time::timeout(
+            tokio::time::Duration::from_secs(TCP_READ_TIMEOUT),
+            stream.read(&mut buf[..]),
+        )
+        .await??;
+        if n == 0 {
+            break;
+        }
+        response_buffer.extend(&buf[..n]);
+    }
     debuginfo!(
         "socks4a_connect_test read data len {} from {}:{} success!",
-        len,
+        response_buffer.len(),
         serverip,
         serverport
     );
-    if buf[..len].eq(data) {
+    if response_buffer.eq(data.as_bytes()) {
         Ok(())
     } else {
+        println!("Expected: {}", data);
+        println!("Received: {}", String::from_utf8_lossy(&response_buffer));
         Err(anyhow!("socks4a_connect_test data not equal"))
     }
 }
@@ -199,32 +222,42 @@ async fn socks5_connect_test(
     _tx: &tokio::sync::mpsc::Sender<Event>, serverip: &str, serverport: u16, proxyip: &str,
     proxyport: u16,
 ) -> Result<()> {
-    let data = b"socks5_connect_test\n";
+    let data = "socks5_connect_test\n".to_owned() + DATASIZE.get().unwrap();
     let mut client = SocksClientBuilder::new(proxyip, proxyport).socks5().build_tcp_client();
     let mut stream = client.connect(serverip, serverport).await?;
     debuginfo!("socks5_connect_test connect to {}:{} success!", serverip, serverport);
-    stream.write_all(data).await?;
+    stream.write_all(data.as_bytes()).await?;
+    stream.shutdown().await?;
     debuginfo!(
         "socks5_connect_test write data len:{} to {}:{} success!",
         data.len(),
         serverip,
         serverport
     );
-    let mut buf = [0; 128];
-    let len = tokio::time::timeout(
-        tokio::time::Duration::from_secs(TCP_READ_TIMEOUT),
-        stream.read(&mut buf[..]),
-    )
-    .await??;
+    let mut buf = vec![0; 128 + DATASIZE.get().unwrap().len()];
+    let mut response_buffer: Vec<u8> = vec![];
+    loop {
+        let n = tokio::time::timeout(
+            tokio::time::Duration::from_secs(TCP_READ_TIMEOUT),
+            stream.read(&mut buf[..]),
+        )
+        .await??;
+        if n == 0 {
+            break;
+        }
+        response_buffer.extend(&buf[..n]);
+    }
     debuginfo!(
         "socks5_connect_test read data len {} from {}:{} success!",
-        len,
+        response_buffer.len(),
         serverip,
         serverport
     );
-    if buf[..len].eq(data) {
+    if response_buffer.eq(data.as_bytes()) {
         Ok(())
     } else {
+        println!("Expected: {}", data);
+        println!("Received: {}", String::from_utf8_lossy(&buf));
         Err(anyhow!("socks5_connect_test data not equal"))
     }
 }
@@ -233,7 +266,7 @@ async fn socks5_auth_connect_test(
     _tx: &tokio::sync::mpsc::Sender<Event>, serverip: &str, serverport: u16, proxyip: &str,
     proxyport: u16,
 ) -> Result<()> {
-    let data = b"socks5_auth_connect_test\n";
+    let data = "socks5_auth_connect_test\n".to_owned() + DATASIZE.get().unwrap();
     let auth = get_auth();
     let mut authinfo = auth.split(':');
     let username = authinfo.next().unwrap_or_default();
@@ -245,28 +278,38 @@ async fn socks5_auth_connect_test(
         .build_tcp_client();
     let mut stream = client.connect(serverip, serverport).await?;
     debuginfo!("socks5_auth_connect_test connect to {}:{} success!", serverip, serverport);
-    stream.write_all(data).await?;
+    stream.write_all(data.as_bytes()).await?;
+    stream.shutdown().await?;
     debuginfo!(
         "socks5_auth_connect_test write data len:{} to {}:{} success!",
         data.len(),
         serverip,
         serverport
     );
-    let mut buf = [0; 128];
-    let len = tokio::time::timeout(
-        tokio::time::Duration::from_secs(TCP_READ_TIMEOUT),
-        stream.read(&mut buf[..]),
-    )
-    .await??;
+    let mut buf = vec![0; 128 + DATASIZE.get().unwrap().len()];
+    let mut response_buffer: Vec<u8> = vec![];
+    loop {
+        let n = tokio::time::timeout(
+            tokio::time::Duration::from_secs(TCP_READ_TIMEOUT),
+            stream.read(&mut buf[..]),
+        )
+        .await??;
+        if n == 0 {
+            break;
+        }
+        response_buffer.extend(&buf[..n]);
+    }
     debuginfo!(
         "socks5_auth_connect_test read data len {} from {}:{} success!",
-        len,
+        response_buffer.len(),
         serverip,
         serverport
     );
-    if buf[..len].eq(data) {
+    if response_buffer.eq(data.as_bytes()) {
         Ok(())
     } else {
+        println!("Expected: {}", data);
+        println!("Received: {}", String::from_utf8_lossy(&buf));
         Err(anyhow!("socks5_auth_connect_test data not equal"))
     }
 }
@@ -280,13 +323,14 @@ async fn socks4a_connect_hostname_test(
     let mut stream = client.connect_hostname("www.baidu.com", 80).await?;
     debuginfo!("socks4a_connect_hostname_test connect to {}:{} success!", "www.baidu.com", 80);
     stream.write_all(HTTP_REQUEST.as_bytes()).await?;
+    stream.shutdown().await?;
     debuginfo!(
         "socks4a_connect_hostname_test write data len:{} to {}:{} success!",
         HTTP_REQUEST.len(),
         "www.baidu.com",
         80
     );
-    let mut buf = vec![0; 1024];
+    let mut buf = vec![0; 128 + DATASIZE.get().unwrap().len()];
     let mut response_buffer = vec![];
     loop {
         let n = tokio::time::timeout(
@@ -301,7 +345,7 @@ async fn socks4a_connect_hostname_test(
     }
     debuginfo!(
         "socks4a_connect_hostname_test read data len {} from {}:{} success!",
-        buf.len(),
+        response_buffer.len(),
         "www.baidu.com",
         80
     );
@@ -321,6 +365,7 @@ async fn socks5_connect_hostname_test(
     let mut stream = client.connect_hostname("www.baidu.com", 80).await?;
     debuginfo!("socks5_connect_hostname_test connect to {}:{} success!", "www.baidu.com", 80);
     stream.write_all(HTTP_REQUEST.as_bytes()).await?;
+    stream.shutdown().await?;
     debuginfo!(
         "socks5_connect_hostname_test write data len:{} to {}:{} success!",
         HTTP_REQUEST.len(),
@@ -342,7 +387,7 @@ async fn socks5_connect_hostname_test(
     }
     debuginfo!(
         "socks5_connect_hostname_test read data len {} from {}:{} success!",
-        buf.len(),
+        response_buffer.len(),
         "www.baidu.com",
         80
     );
@@ -357,26 +402,31 @@ async fn socks4_bind_test(
     tx: &tokio::sync::mpsc::Sender<Event>, _serverip: &str, _serverport: u16, proxyip: &str,
     proxyport: u16,
 ) -> Result<()> {
-    let data = b"socks4_bind_test\n";
+    let data = "socks4_bind_test\n".to_owned() + DATASIZE.get().unwrap();
     let mut client = SocksClientBuilder::new(proxyip, proxyport).socks4().build_listen_client();
     client.bind("0.0.0.0", 0).await?;
     debuginfo!("socks4_bind_test bind success!");
     let addr = client.get_proxy_bind_addr().ok_or(anyhow!("get bind addr failed"))?;
-    let event = Event { target_addr: addr, data: data.to_vec() };
+    let event = Event { target_addr: addr, data: data.as_bytes().to_vec() };
     tx.send(event).await?;
     debuginfo!("socks4_bind_test bind notify {} success!", addr.to_string());
     let mut stream = client.accept().await?;
     debuginfo!("socks4_bind_test accept success!");
-    let mut buf = [0; 128];
+
+    let mut buf = vec![0; 128 + DATASIZE.get().unwrap().len()];
+
     let len = tokio::time::timeout(
         tokio::time::Duration::from_secs(TCP_READ_TIMEOUT),
         stream.read(&mut buf[..]),
     )
     .await??;
+
     debuginfo!("socks4_bind_test read len {} success!", len);
-    if buf[..len].eq(data) {
+    if buf[..len].eq(data.as_bytes()) {
         Ok(())
     } else {
+        println!("Expected: {}", data);
+        println!("Received: {}", String::from_utf8_lossy(&buf));
         Err(anyhow!("socks4_bind_test data not equal"))
     }
 }
@@ -385,26 +435,28 @@ async fn socks5_bind_test(
     tx: &tokio::sync::mpsc::Sender<Event>, serverip: &str, serverport: u16, proxyip: &str,
     proxyport: u16,
 ) -> Result<()> {
-    let data = b"socks5_bind_test\n";
+    let data = "socks5_bind_test\n".to_owned() + DATASIZE.get().unwrap();
     let mut client = SocksClientBuilder::new(proxyip, proxyport).socks5().build_listen_client();
     client.bind(serverip, serverport).await?;
     debuginfo!("socks5_bind_test bind success!");
     let addr = client.get_proxy_bind_addr().ok_or(anyhow!("get bind addr failed"))?;
-    let event = Event { target_addr: addr, data: data.to_vec() };
+    let event = Event { target_addr: addr, data: data.as_bytes().to_vec() };
     tx.send(event).await?;
     debuginfo!("socks5_bind_test bind notify {} success!", addr.to_string());
     let mut stream = client.accept().await?;
     debuginfo!("socks5_bind_test accept success!");
-    let mut buf = [0; 128];
+    let mut buf = vec![0; 128 + DATASIZE.get().unwrap().len()];
     let len = tokio::time::timeout(
         tokio::time::Duration::from_secs(TCP_READ_TIMEOUT),
         stream.read(&mut buf[..]),
     )
     .await??;
     debuginfo!("socks5_bind_test read len {} success!", len);
-    if buf[..len].eq(data) {
+    if buf[..len].eq(data.as_bytes()) {
         Ok(())
     } else {
+        println!("Expected: {}", data);
+        println!("Received: {}", String::from_utf8_lossy(&buf));
         Err(anyhow!("socks5_bind_test data not equal"))
     }
 }
@@ -413,19 +465,31 @@ async fn socks5_udp_test(
     _tx: &tokio::sync::mpsc::Sender<Event>, serverip: &str, serverport: u16, proxyip: &str,
     proxyport: u16,
 ) -> Result<()> {
-    const UDP_DATA: &str = "UDP Data";
+    let udp_data = "UDP Data".to_owned() + DATASIZE.get().unwrap();
     let mut client = SocksClientBuilder::new(proxyip, proxyport).socks5().build_udp_client();
     client.udp_associate("0.0.0.0", 0).await?;
     debuginfo!("socks5_udp_test udp_associate success!");
     let mut udp = client.get_udp_socket("0.0.0.0:0").await?;
     debuginfo!("socks5_udp_test get_udp_socket {:?} success!", udp.get_proxy_udp_addr());
-    udp.send_udp_data(UDP_DATA.as_bytes(), &format!("{}:{}", serverip, serverport)).await?;
-    debuginfo!("socks5_udp_test send_udp_data len {} success!", UDP_DATA.len());
-    let data = udp.recv_udp_data(5).await?;
-    debuginfo!("socks5_udp_test recv_udp_data len {} success!", data.1.len());
-    if data.1.eq(UDP_DATA.as_bytes()) {
+
+    udp.send_udp_data(udp_data.as_bytes(), &format!("{}:{}", serverip, serverport)).await?;
+    debuginfo!("socks5_udp_test send_udp_data len {} success!", udp_data.len());
+
+    let mut data = vec![];
+    loop {
+        let datatmp = udp.recv_udp_data(5).await?;
+        debuginfo!("socks5_udp_test recv_udp_data len {} success!", datatmp.1.len());
+        data.extend(datatmp.1);
+        if data.len() >= udp_data.as_bytes().len() {
+            break;
+        }
+    }
+
+    if data.eq(udp_data.as_bytes()) {
         Ok(())
     } else {
+        println!("Expected: {}", udp_data);
+        println!("Received: {}", String::from_utf8_lossy(&data));
         Err(anyhow!("socks5_udp_test data not equal"))
     }
 }
@@ -567,7 +631,8 @@ async fn run_test_cace_client(
 
 async fn run_udp_echo_server(ip: &str, port: u16) -> Result<()> {
     let sock = UdpSocket::bind(format!("{}:{}", ip, port)).await?;
-    let mut buf = [0; 1024];
+    let datasize = DATASIZE.get().unwrap().len();
+    let mut buf = vec![0u8; 1024 + datasize];
     loop {
         let (len, addr) = sock.recv_from(&mut buf).await?;
         let _len = sock.send_to(&buf[..len], addr).await?;
@@ -601,23 +666,31 @@ async fn run_tcp_echo_server(ip: &str, port: u16) -> Result<()> {
                 tokio::spawn(async move {
                     let (reader, mut writer) = socket.split();
                     let mut reader = tokio::io::BufReader::new(reader);
-                    let mut msg: String = String::new();
                     loop {
-                        match reader.read_line(&mut msg).await {
-                            Ok(_bytes_size) => {
-                                match writer.write_all(msg.as_bytes()).await {
+                        let mut msg = [0; 2048];
+                        match reader.read(&mut msg).await {
+                            Ok(bytes_size) => {
+                                println!("recived bytes_size {}", bytes_size);
+                                match writer.write_all(&msg[0..bytes_size]).await {
                                     Ok(()) => (),
                                     Err(err) => {
                                         print!("Err:{:?}", err);
+                                        break;
                                     }
                                 }
-                                let _x = writer.shutdown();
-                                break;
+                                if bytes_size == 0 {
+                                    break;
+                                }
                             }
                             Err(err) => {
                                 print!("Err:{:?}", err);
+                                break;
                             }
                         }
+                    }
+                    // 关闭连接
+                    if let Err(err) = socket.shutdown().await {
+                        println!("Shutdown error: {:?}", err);
                     }
                 });
             }
@@ -670,6 +743,13 @@ fn parse_args() -> clap::ArgMatches {
                 .default_value(""),
         )
         .arg(
+            clap::Arg::new("datasize")
+                .long("datasize")
+                .value_name("datasize")
+                .help("set test data size")
+                .required(false),
+        )
+        .arg(
             clap::Arg::new("casename")
                 .long("casename")
                 .value_name("test case name")
@@ -701,6 +781,17 @@ fn parse_args() -> clap::ArgMatches {
         .get_matches()
 }
 
+fn init_data_size(datasizeint: u16) {
+    DATASIZE.get_or_init(|| {
+        if datasizeint == 0 {
+            String::from("")
+        } else {
+            let rng = thread_rng();
+            rng.sample_iter(&Alphanumeric).take(datasizeint as usize).map(char::from).collect()
+        }
+    });
+}
+
 #[tokio::main]
 async fn main() -> Result<()> {
     let (tx, mut rx) = mpsc::channel::<Event>(100);
@@ -721,6 +812,10 @@ async fn main() -> Result<()> {
 
     let authinfo = matches.get_one::<String>("auth").expect("auth").clone();
     init_auth(&authinfo);
+
+    let datasize = matches.get_one::<String>("datasize").map(|s| s.as_str()).unwrap_or_default();
+    let datasizeint = datasize.parse::<u16>().unwrap_or_default();
+    init_data_size(datasizeint);
 
     let debug: bool = matches.get_flag("debug");
     if debug {

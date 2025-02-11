@@ -10,11 +10,12 @@ keywords = ["socks", "rust", "test"]
 repository = "https://github.com/sujiacong/sockstest"
 
 [dependencies]
-libsocks_client = "0.1.2"
+libsocks_client = "0.1.4"
 tokio = { version = "1.39.3", features = ["full"] }
 clap = "4.3.4"
 anyhow = "1.0.87"
 colored = "2"
+rand = "0.8"
 
 [profile.release]
 strip = true

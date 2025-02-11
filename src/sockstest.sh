@@ -25,6 +25,11 @@ do
 	shift
         auth="$1"
         echo "auth $auth"
+    elif echo $arg |grep -q '\-\-datasize'
+    then
+	shift
+        echo "datasize $datasize"
+        datasize="--datasize $1"
     elif echo $arg |grep -q '\-\-debug'
     then
 	shift
@@ -41,15 +46,21 @@ then
     echo "$0 --proxyip 10.206.118.122 --proxyport 1080 --serverip 10.206.118.65 --auth user1:user1"
     exit 0
 fi
-./sockstest --proxyip $proxyip --proxyport $proxyport --serverip $serverip --casename socks4_connect $debug
-./sockstest --proxyip $proxyip --proxyport $proxyport --serverip $serverip --casename socks4a_connect $debug
-./sockstest --proxyip $proxyip --proxyport $proxyport --serverip $serverip --casename socks5_connect $debug
-./sockstest --proxyip $proxyip --proxyport $proxyport --serverip $serverip --casename socks4a_connect_hostname $debug
-./sockstest --proxyip $proxyip --proxyport $proxyport --serverip $serverip --casename socks5_connect_hostname $debug
-./sockstest --proxyip $proxyip --proxyport $proxyport --serverip $serverip --casename socks4_bind $debug
-./sockstest --proxyip $proxyip --proxyport $proxyport --serverip $serverip --casename socks5_bind $debug
-./sockstest --proxyip $proxyip --proxyport $proxyport --serverip $serverip --casename socks5_udp $debug
+
+eval_cmd()
+{
+   echo "$@"
+   eval $@
+}
+eval_cmd ./sockstest --proxyip $proxyip --proxyport $proxyport --serverip $serverip --casename socks4_connect $datasize $debug
+eval_cmd ./sockstest --proxyip $proxyip --proxyport $proxyport --serverip $serverip --casename socks4a_connect $datasize $debug
+eval_cmd ./sockstest --proxyip $proxyip --proxyport $proxyport --serverip $serverip --casename socks5_connect $datasize $debug
+eval_cmd ./sockstest --proxyip $proxyip --proxyport $proxyport --serverip $serverip --casename socks4a_connect_hostname $datasize $debug
+eval_cmd ./sockstest --proxyip $proxyip --proxyport $proxyport --serverip $serverip --casename socks5_connect_hostname $datasize $debug
+eval_cmd ./sockstest --proxyip $proxyip --proxyport $proxyport --serverip $serverip --casename socks4_bind $datasize $debug
+eval_cmd ./sockstest --proxyip $proxyip --proxyport $proxyport --serverip $serverip --casename socks5_bind $datasize $debug
+eval_cmd ./sockstest --proxyip $proxyip --proxyport $proxyport --serverip $serverip --casename socks5_udp $datasize $debug
 if [ ! -z $auth ]
 then
-    ./sockstest --proxyip $proxyip --proxyport $proxyport --serverip $serverip --casename socks5_auth_connect --auth $auth $debug
+    ./sockstest --proxyip $proxyip --proxyport $proxyport --serverip $serverip --casename socks5_auth_connect --auth $auth $datasize $debug
 fi
